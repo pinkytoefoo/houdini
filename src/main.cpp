@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 using Bitboard = std::uint64_t;
+using u16 = std::uint16_t;
 
 namespace BitboardUtils {
     inline void set_bit(Bitboard& bb, int square) {
@@ -27,7 +28,7 @@ namespace BitboardUtils {
     }
 }
 
-enum Square {
+enum Square : u16 {
   A1, B1, C1, D1, E1, F1, G1, H1,
   A2, B2, C2, D2, E2, F2, G2, H2,
   A3, B3, C3, D3, E3, F3, G3, H3,
@@ -40,22 +41,22 @@ enum Square {
   SQUARE_NB = 64
 };
 
-enum BitboardType {
-    WhitePawns,
-    WhiteKnights,
-    WhiteBishops,
-    WhiteRooks,
-    WhiteQueens,
-    WhiteKing,
-
-    BlackPawns,
-    BlackKnights,
-    BlackBishops,
-    BlackRooks,
-    BlackQueens,
-    BlackKing,
-    Count
+enum Piece : u16 {
+    PAWN,
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN,
+    KING,
+    PIECE_NB
 };
+
+enum Color : u16 {
+    WHITE,
+    BLACK,
+    COLOR_NB,
+};
+
 
 class Board
 {
@@ -66,21 +67,22 @@ public:
     }
 
     void LoadPositionFromFen(const std::string& fen) {
-        static const std::unordered_map<char, BitboardType> charToPiece = {
-            {'P', BitboardType::WhitePawns},
-            {'N', BitboardType::WhiteKnights},
-            {'B', BitboardType::WhiteBishops},
-            {'R', BitboardType::WhiteRooks},
-            {'Q', BitboardType::WhiteQueens},
-            {'K', BitboardType::WhiteKing},
+        static const std::unordered_map<char, std::pair<Color, Piece>> charToPiece = {
+            {'P', {WHITE, PAWN}},
+            {'N', {WHITE, KNIGHT}},
+            {'B', {WHITE, BISHOP}},
+            {'R', {WHITE, ROOK}},
+            {'Q', {WHITE, QUEEN}},
+            {'K', {WHITE, KING}},
 
-            {'p', BitboardType::BlackPawns},
-            {'n', BitboardType::BlackKnights},
-            {'b', BitboardType::BlackBishops},
-            {'r', BitboardType::BlackRooks},
-            {'q', BitboardType::BlackQueens},
-            {'k', BitboardType::BlackKing},
+            {'p', {BLACK, PAWN}},
+            {'n', {BLACK, KNIGHT}},
+            {'b', {BLACK, BISHOP}},
+            {'r', {BLACK, ROOK}},
+            {'q', {BLACK, QUEEN}},
+            {'k', {BLACK, KING}},
         };
+
         int file = 0;
         int rank = 7;
         for(auto c : fen) {
@@ -90,7 +92,7 @@ public:
             } else if(isdigit(c)) {
                 file += c - '0';
             } else {
-                boards_[charToPiece.at(c)] |= (1ull << (rank * 8 + file));
+                boards_[charToPiece.at(c).first][charToPiece.at(c).second] |= (1ull << (rank * 8 + file));
                 ++file;
             }
         }
@@ -101,21 +103,24 @@ public:
     }
 
     void Print() {
-        static constexpr char tokens[] = {
-            'P', 'N', 'B', 'R', 'Q', 'K',
-            'p', 'n', 'b', 'r', 'q', 'k'
+        static constexpr char tokens[][6] = {
+            {'P', 'N', 'B', 'R', 'Q', 'K'},
+            {'p', 'n', 'b', 'r', 'q', 'k'}
         };
 
-        for (int rank = 7; rank >= 0; --rank) {
+        std::cout << "\n\n  +---+---+---+---+---+---+---+---+\n";
+
+        for (u16 rank = 8; rank-- > 0;) {
             std::cout << rank + 1 << " | ";
 
-            for (int file = 0; file < 8; ++file) {
-                const int square = rank * 8 + file;
+            for (u16 file = 0; file < 8; ++file) {
+                const u16 square = rank * 8 + file;
                 char piece_rep = '.';
 
-                for (int i = 0; i < BitboardType::Count; ++i) {
-                    if (BitboardUtils::get_bit(boards_[i], square)) {
-                        piece_rep = tokens[i];
+                for (u16 color{}; color < COLOR_NB; ++color) {
+                    for(u16 piece{}; piece < PIECE_NB; ++piece)
+                    if (BitboardUtils::get_bit(boards_[color][piece], square)) {
+                        piece_rep = tokens[color][piece];
                         break;
                     }
                 }
@@ -130,8 +135,7 @@ public:
     }
 
 private:
-    Bitboard boards_[BitboardType::Count]{};
-
+    Bitboard boards_[COLOR_NB][PIECE_NB]{{}};
 };
 
 int main() {
