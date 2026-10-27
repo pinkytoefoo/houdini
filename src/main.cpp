@@ -8,6 +8,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cctype>
+#include <array>
 
 using Bitboard = std::uint64_t;
 using u16 = std::uint16_t;
@@ -96,6 +97,32 @@ constexpr FullPiece CharToPiece(char ch) {
     throw "invalid piece character";
 }
 
+struct MoveTables {
+    using MoveTable = std::array<Bitboard, 64>;
+
+    static constexpr MoveTable KNIGHT_ATTACKS = [] consteval -> MoveTable {
+        std::array<Bitboard, 64> attacks{};
+
+        constexpr Bitboard FILE_A = 0x0101010101010101;
+        constexpr Bitboard FILE_AB = FILE_A | (FILE_A << 1);
+        constexpr Bitboard FILE_H = 0x8080808080808080;
+        constexpr Bitboard FILE_GH = FILE_H | (FILE_H >> 1);
+
+        for (int sq = 0; sq < 64; ++sq) {
+            Bitboard b = 1ULL << sq;
+            attacks[sq] = (b << 17 & ~FILE_A)  | // North-North-East
+                   (b << 15 & ~FILE_H)  | // North-North-West
+                   (b << 10 & ~FILE_AB) | // East-East-North
+                   (b <<  6 & ~FILE_GH) | // West-West-North
+                   (b >> 17 & ~FILE_H)  | // South-South-West
+                   (b >> 15 & ~FILE_A)  | // South-South-East
+                   (b >> 10 & ~FILE_GH) | // West-West-South
+                   (b >>  6 & ~FILE_AB);  // East-East-South
+        }
+        return attacks;
+    }();
+};
+
 class Board
 {
 public:
@@ -181,30 +208,7 @@ public:
 
     // todo: check if there is really a knight on from square
     Bitboard KnightPsuedoMoves(Square from, Side side) {
-
-        // identify the outer files to prevent overflow
-        constexpr Bitboard FILE_A = 0x0101010101010101;
-        constexpr Bitboard FILE_AB = FILE_A | (FILE_A << 1);
-        constexpr Bitboard FILE_H = 0x8080808080808080;
-        constexpr Bitboard FILE_GH = FILE_H | (FILE_H >> 1);
-
-        const Bitboard friendly = Occupancy(side);
-
-        // all possible psuedo-legal moves
-        Bitboard attacks{};
-        // create a bitboard with just the knight's current position
-        Bitboard knightPos{BitboardUtils::isolate_bit_from_board(boards_[side][KNIGHT], from)};
-
-        attacks |= (knightPos << 17 & ~FILE_A)  | // North-North-East
-                   (knightPos << 15 & ~FILE_H)  | // North-North-West
-                   (knightPos << 10 & ~FILE_AB) | // East-East-North
-                   (knightPos <<  6 & ~FILE_GH) | // West-West-North
-                   (knightPos >> 17 & ~FILE_H)  | // South-South-West
-                   (knightPos >> 15 & ~FILE_A)  | // South-South-East
-                   (knightPos >> 10 & ~FILE_GH) | // West-West-South
-                   (knightPos >>  6 & ~FILE_AB);  // East-East-South
-        
-        return attacks & ~friendly;
+        return MoveTables::KNIGHT_ATTACKS[from];
     }
     
     char GetPieceAt(Square square) const {
@@ -261,7 +265,7 @@ int main() {
     Board board("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR");
     board.Print();
 
-    Print8x8(board.KnightPsuedoMoves(C3, SIDE_WHITE));
+    Print8x8(MoveTables::KNIGHT_ATTACKS[D4]);
 
     std::string line;
     while (std::getline(std::cin, line)) {
