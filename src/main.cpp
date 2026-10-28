@@ -9,10 +9,10 @@
 #include <stdexcept>
 #include <cctype>
 #include <array>
+#include <ranges>
+#include <string_view>
 
-using Bitboard = std::uint64_t;
-using u16 = std::uint16_t;
-
+#include "constants.hpp"
 
 enum Square : u16 {
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -97,30 +97,48 @@ constexpr FullPiece CharToPiece(char ch) {
     throw "invalid piece character";
 }
 
-struct MoveTables {
-    using MoveTable = std::array<Bitboard, 64>;
+namespace MoveTables {
+    consteval MoveTable GenerateKnightAttacks() {
+        MoveTable attacks{};
 
-    static constexpr MoveTable KNIGHT_ATTACKS = [] consteval -> MoveTable {
-        std::array<Bitboard, 64> attacks{};
+        for (int sq = 0; sq < kBoardSize; ++sq) {
+            Bitboard b = 1ull << sq;
 
-        constexpr Bitboard FILE_A = 0x0101010101010101;
-        constexpr Bitboard FILE_AB = FILE_A | (FILE_A << 1);
-        constexpr Bitboard FILE_H = 0x8080808080808080;
-        constexpr Bitboard FILE_GH = FILE_H | (FILE_H >> 1);
-
-        for (int sq = 0; sq < 64; ++sq) {
-            Bitboard b = 1ULL << sq;
-            attacks[sq] = (b << 17 & ~FILE_A)  | // North-North-East
-                   (b << 15 & ~FILE_H)  | // North-North-West
-                   (b << 10 & ~FILE_AB) | // East-East-North
-                   (b <<  6 & ~FILE_GH) | // West-West-North
-                   (b >> 17 & ~FILE_H)  | // South-South-West
-                   (b >> 15 & ~FILE_A)  | // South-South-East
-                   (b >> 10 & ~FILE_GH) | // West-West-South
-                   (b >>  6 & ~FILE_AB);  // East-East-South
+            attacks[sq] =
+                (b << 17 & ~FilesMasks::A)  | // North-North-East
+                (b << 15 & ~FilesMasks::H)  | // North-North-West
+                (b << 10 & ~FilesMasks::AB) | // East-East-North
+                (b <<  6 & ~FilesMasks::GH) | // West-West-North
+                (b >> 17 & ~FilesMasks::H)  | // South-South-West
+                (b >> 15 & ~FilesMasks::A)  | // South-South-East
+                (b >> 10 & ~FilesMasks::GH) | // West-West-South
+                (b >>  6 & ~FilesMasks::AB);  // East-East-South
         }
+
         return attacks;
-    }();
+    }
+
+    consteval MoveTable GenerateKingMoves() {
+        MoveTable moves{};
+
+        for (int square{}; square < kBoardSize; ++square) {
+            const Bitboard b = 1ULL << square;
+
+            moves[square] =
+                (b << 7 & ~FilesMasks::H) | // up-right
+                (b << 8)                  | // up
+                (b << 9 & ~FilesMasks::A) | // up-left
+                (b << 1 & ~FilesMasks::A) | // left
+                (b >> 1 & ~FilesMasks::H) | // right
+                (b >> 7 & ~FilesMasks::A) | // down-left
+                (b >> 8)                  | // down
+                (b >> 9 & ~FilesMasks::H);  // down-right
+        }
+        return moves;
+    }
+
+    constexpr MoveTable KNIGHT_ATTACKS{GenerateKnightAttacks()};
+    constexpr MoveTable KING_MOVES{GenerateKingMoves()};
 };
 
 class Board
@@ -138,7 +156,7 @@ public:
             if(c == '/') {
                 file = 0;
                 --rank;
-            } else if(isdigit(c)) {
+            } else if(std::isdigit(c)) {
                 file += c - '0';
             } else {
                 const auto cp = CharToPiece(c);
@@ -155,7 +173,7 @@ public:
             case 'n':
                 break;
             default:
-                boards_[toMove_][PAWN];
+                // boards_[toMove_][PAWN];
                 break;
         }
     }
@@ -185,10 +203,8 @@ public:
 
                 std::cout << piece_rep << " | ";
             }
-
             std::cout << "\n  +---+---+---+---+---+---+---+---+\n";
         }
-
         std::cout << "    a   b   c   d   e   f   g   h\n\n";
     }
 
@@ -208,7 +224,7 @@ public:
 
     // todo: check if there is really a knight on from square
     Bitboard KnightPsuedoMoves(Square from, Side side) {
-        return MoveTables::KNIGHT_ATTACKS[from];
+        return MoveTables::KNIGHT_ATTACKS[from] & ~Occupancy(side);
     }
     
     char GetPieceAt(Square square) const {
@@ -249,7 +265,7 @@ void Print8x8(Bitboard bb) {
             for (u16 color{}; color < SIDE_NB; ++color) {
                 for(u16 piece{}; piece < PIECE_NB; ++piece)
                 if (BitboardUtils::get_bit(bb, square)) {
-                    piece_rep = tokens[color][piece];
+                    piece_rep = 'O';
                     break;
                 }
             }
@@ -265,9 +281,6 @@ int main() {
     Board board("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR");
     board.Print();
 
-    Print8x8(MoveTables::KNIGHT_ATTACKS[D4]);
-
-    std::string line;
-    while (std::getline(std::cin, line)) {
-    }
+    Print8x8(MoveTables::KING_MOVES[D4]);
+    Print8x8(FilesMasks::A);
 }
