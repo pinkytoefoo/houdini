@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include "aliases.hpp"
 
 namespace FilesMasks {
@@ -9,5 +10,5 @@ namespace FilesMasks {
     inline constexpr Bitboard GH = H | (H >> 1);
 }
 
-static constexpr size_t kBoardSize = 64ul;
+static constexpr std::size_t kBoardSize = 64ul;
 

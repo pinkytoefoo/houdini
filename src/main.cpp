@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include "constants.hpp"
+#include "move_tables.hpp"
 
 enum Square : u16 {
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -97,48 +98,9 @@ constexpr FullPiece CharToPiece(char ch) {
     throw "invalid piece character";
 }
 
-namespace MoveTables {
-    consteval MoveTable GenerateKnightAttacks() {
-        MoveTable attacks{};
-
-        for (int sq = 0; sq < kBoardSize; ++sq) {
-            Bitboard b = 1ull << sq;
-
-            attacks[sq] =
-                (b << 17 & ~FilesMasks::A)  | // North-North-East
-                (b << 15 & ~FilesMasks::H)  | // North-North-West
-                (b << 10 & ~FilesMasks::AB) | // East-East-North
-                (b <<  6 & ~FilesMasks::GH) | // West-West-North
-                (b >> 17 & ~FilesMasks::H)  | // South-South-West
-                (b >> 15 & ~FilesMasks::A)  | // South-South-East
-                (b >> 10 & ~FilesMasks::GH) | // West-West-South
-                (b >>  6 & ~FilesMasks::AB);  // East-East-South
-        }
-
-        return attacks;
-    }
-
-    consteval MoveTable GenerateKingMoves() {
-        MoveTable moves{};
-
-        for (int square{}; square < kBoardSize; ++square) {
-            const Bitboard b = 1ULL << square;
-
-            moves[square] =
-                (b << 7 & ~FilesMasks::H) | // up-right
-                (b << 8)                  | // up
-                (b << 9 & ~FilesMasks::A) | // up-left
-                (b << 1 & ~FilesMasks::A) | // left
-                (b >> 1 & ~FilesMasks::H) | // right
-                (b >> 7 & ~FilesMasks::A) | // down-left
-                (b >> 8)                  | // down
-                (b >> 9 & ~FilesMasks::H);  // down-right
-        }
-        return moves;
-    }
-
-    constexpr MoveTable KNIGHT_ATTACKS{GenerateKnightAttacks()};
-    constexpr MoveTable KING_MOVES{GenerateKingMoves()};
+struct Move {
+    Square from;
+    Square to;
 };
 
 class Board
@@ -166,16 +128,20 @@ public:
         }
     }
 
-    [[nodiscard]] bool TryMove(const std::string& move) {
-        switch(move[0]) {
-            case 'N':
-                break;
-            case 'n':
-                break;
-            default:
-                // boards_[toMove_][PAWN];
-                break;
+    [[nodiscard]] bool TryMove(Move move, Piece type) {
+        // if the piece does not exist, return false
+        if(!BitboardUtils::get_bit(boards_[toMove_][type], move.from)) {
+            return false;
         }
+
+        MakeMove(move, type);
+        return true;
+    }
+
+    void MakeMove(Move move, Piece type) {
+        BitboardUtils::set_bit(boards_[toMove_][type], move.to);
+        BitboardUtils::clear_bit(boards_[toMove_][type], move.from);
+        toMove_ = (toMove_ == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
     }
 
     void Print() {
