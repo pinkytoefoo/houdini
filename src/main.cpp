@@ -11,11 +11,12 @@
 #include <array>
 #include <ranges>
 #include <string_view>
+#include <optional>
 
-#include "constants.hpp"
+#include "bitboard.hpp"
 #include "move_tables.hpp"
 
-enum Square : u16 {
+enum Square : std::uint16_t {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
     A3, B3, C3, D3, E3, F3, G3, H3,
@@ -28,7 +29,7 @@ enum Square : u16 {
     SQUARE_NB = 64
 };
 
-enum Piece : u16 {
+enum Piece : std::uint16_t {
     PAWN,
     KNIGHT,
     BISHOP,
@@ -38,7 +39,7 @@ enum Piece : u16 {
     PIECE_NB
 };
 
-enum Side : u16 {
+enum Side : std::uint16_t {
     SIDE_WHITE,
     SIDE_BLACK,
     SIDE_NB,
@@ -50,32 +51,16 @@ struct FullPiece {
 };
 
 namespace BitboardUtils {
-   inline void set_bit(Bitboard& bb, Square square) {
-        bb |= Bitboard{1} << square;
-    }
-
-    inline void clear_bit(Bitboard& bb, Square square) {
-        bb &= ~(Bitboard{1} << square);
-    }
-
-    inline bool get_bit(Bitboard bb, Square square) {
-        return ((bb >> square) & Bitboard{1}) != 0;
-    }
-
-    inline int count_bits(Bitboard bb) {
-        return std::popcount(bb); // C++20
-    }
-
-    inline Square pop_lsb(Bitboard& bb) {
-        assert(bb != 0);
-        const auto square = std::countr_zero(bb);
-        bb &= bb - 1;
-        return static_cast<Square>(square);
-    }
-
-    inline Bitboard isolate_bit_from_board(Bitboard bb, Square square) {
-        return bb & (Bitboard{1} << square);
-    }
+    // inline Square pop_lsb(Bitboard& bb) {
+    //     assert(bb != 0);
+    //     const auto square = std::countr_zero(bb);
+    //     bb &= bb - 1;
+    //     return static_cast<Square>(square);
+    // }
+    //
+    // inline Bitboard isolate_bit_from_board(Bitboard bb, Square square) {
+    //     return bb & (Bitboard{1} << square);
+    // }
 }
 
 constexpr FullPiece CharToPiece(char ch) {
@@ -103,10 +88,10 @@ struct Move {
     Square to;
 };
 
-class Board
+class Position
 {
 public:
-    Board(const std::string& fen)
+    Position(const std::string& fen)
     {
         LoadPositionFromFen(fen);
     }
@@ -175,7 +160,7 @@ public:
     }
 
     [[nodiscard]] Bitboard Occupancy(Side side) const {
-        Bitboard result = 0;
+        Bitboard result{ 0ull };
 
         for(short piece{}; piece < PIECE_NB; ++piece) {
             result |= boards_[side][piece];
@@ -210,7 +195,8 @@ public:
 
 private:
     Bitboard boards_[SIDE_NB][PIECE_NB]{{}};
-    Side toMove_{SIDE_WHITE};
+    Side side_to_move_{SIDE_WHITE};
+    std::optional<Square> en_passant_sq_;
 };
 
 void Print8x8(Bitboard bb) {
@@ -230,7 +216,7 @@ void Print8x8(Bitboard bb) {
 
             for (u16 color{}; color < SIDE_NB; ++color) {
                 for(u16 piece{}; piece < PIECE_NB; ++piece)
-                if (BitboardUtils::get_bit(bb, square)) {
+                if (bb.get(square)) {
                     piece_rep = 'O';
                     break;
                 }
@@ -248,5 +234,5 @@ int main() {
     board.Print();
 
     Print8x8(MoveTables::KING_MOVES[D4]);
-    Print8x8(FilesMasks::A);
+    Print8x8(Files::A);
 }
