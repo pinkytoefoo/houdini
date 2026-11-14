@@ -1,11 +1,18 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 
-template<std::size_t Size>
-using MoveTable = std::array<Bitboard, Size>;
+#include "bitboard.hpp"
+
+static constexpr std::size_t kBoardSize = 64;
+using MoveTable = std::array<Bitboard, kBoardSize>;
 
 namespace MoveTables {
-    extern const MoveTable<64> KNIGHT_ATTACKS;
-    extern const MoveTable<64> KING_MOVES;
+    consteval MoveTable GenerateKnightAttacks();
+
+    Bitboard GetRookAttacks(Square from, Bitboard occupied);
+
+    extern const MoveTable kKnightAttacks;
+    extern const MoveTable kKingMoves;
 };

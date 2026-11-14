@@ -12,22 +12,12 @@
 #include <ranges>
 #include <string_view>
 #include <optional>
+#include <chrono>
+
+using namespace std::chrono;
 
 #include "bitboard.hpp"
 #include "move_tables.hpp"
-
-enum Square : std::uint16_t {
-    A1, B1, C1, D1, E1, F1, G1, H1,
-    A2, B2, C2, D2, E2, F2, G2, H2,
-    A3, B3, C3, D3, E3, F3, G3, H3,
-    A4, B4, C4, D4, E4, F4, G4, H4,
-    A5, B5, C5, D5, E5, F5, G5, H5,
-    A6, B6, C6, D6, E6, F6, G6, H6,
-    A7, B7, C7, D7, E7, F7, G7, H7,
-    A8, B8, C8, D8, E8, F8, G8, H8,
-    NONE,
-    SQUARE_NB = 64
-};
 
 enum Piece : std::uint16_t {
     PAWN,
@@ -50,19 +40,6 @@ struct FullPiece {
     Piece piece;
 };
 
-namespace BitboardUtils {
-    // inline Square pop_lsb(Bitboard& bb) {
-    //     assert(bb != 0);
-    //     const auto square = std::countr_zero(bb);
-    //     bb &= bb - 1;
-    //     return static_cast<Square>(square);
-    // }
-    //
-    // inline Bitboard isolate_bit_from_board(Bitboard bb, Square square) {
-    //     return bb & (Bitboard{1} << square);
-    // }
-}
-
 constexpr FullPiece CharToPiece(char ch) {
     switch (ch) {
         case 'P': return {SIDE_WHITE, PAWN};
@@ -80,7 +57,7 @@ constexpr FullPiece CharToPiece(char ch) {
         case 'k': return {SIDE_BLACK, KING};
     }
 
-    throw "invalid piece character";
+    throw std::logic_error{"invalid char to piece"};
 }
 
 struct Move {
@@ -114,9 +91,14 @@ public:
     }
 
     [[nodiscard]] bool TryMove(Move move, Piece type) {
-        // if the piece does not exist, return false
-        if(!BitboardUtils::get_bit(boards_[toMove_][type], move.from)) {
+        if(!boards_[side_to_move_][type].get(move.from)) {
             return false;
+        }
+
+        if(type == KNIGHT) {
+            Bitboard attacks = MoveTables::kKnightAttacks[move.from];
+            Bitboard valid = attacks & ~Occupancy(side_to_move_);
+            // todo: add king check logic
         }
 
         MakeMove(move, type);
@@ -124,9 +106,9 @@ public:
     }
 
     void MakeMove(Move move, Piece type) {
-        BitboardUtils::set_bit(boards_[toMove_][type], move.to);
-        BitboardUtils::clear_bit(boards_[toMove_][type], move.from);
-        toMove_ = (toMove_ == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
+        boards_[side_to_move_][type].set(move.to);
+        boards_[side_to_move_][type].set(move.from);
+        side_to_move_ = (side_to_move_ == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
     }
 
     void Print() {
@@ -146,7 +128,7 @@ public:
 
                 for (u16 color{}; color < SIDE_NB; ++color) {
                     for(u16 piece{}; piece < PIECE_NB; ++piece)
-                    if (BitboardUtils::get_bit(boards_[color][piece], square)) {
+                    if(boards_[color][piece].get(square)) {
                         piece_rep = tokens[color][piece];
                         break;
                     }
@@ -175,7 +157,7 @@ public:
 
     // todo: check if there is really a knight on from square
     Bitboard KnightPsuedoMoves(Square from, Side side) {
-        return MoveTables::KNIGHT_ATTACKS[from] & ~Occupancy(side);
+        return MoveTables::kKnightAttacks[from] & ~Occupancy(side);
     }
     
     char GetPieceAt(Square square) const {
@@ -185,7 +167,7 @@ public:
         };
         for (u16 color{}; color < SIDE_NB; ++color) {
             for (u16 piece{}; piece < PIECE_NB; ++piece) {
-                if (((boards_[color][piece] >> square) & 1) != 0) {
+                if (boards_[color][piece].get(square)) {
                     return tokens[color][piece];
                 }
             }
@@ -229,10 +211,42 @@ void Print8x8(Bitboard bb) {
     std::cout << "    a   b   c   d   e   f   g   h\n\n";
 }
 
-int main() {
-    Board board("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR");
-    board.Print();
+__uint128_t g_lehmer64_state = 0x123456789abcdef1ULL;
 
-    Print8x8(MoveTables::KING_MOVES[D4]);
-    Print8x8(Files::A);
+inline uint64_t lehmer64() {
+    g_lehmer64_state *= 0xda942042e4dd58b5ULL;
+    return g_lehmer64_state >> 64;
+}
+
+inline uint8_t lehmer8() {
+    g_lehmer64_state *= 0xda942042e4dd58b5ULL;
+    return g_lehmer64_state & 63;
+}
+
+int main() {
+    Position board("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR");
+    board.Print();
+    
+    constexpr size_t numRnd = 10'000'000;
+    std::vector<Bitboard> rndOccupancies;
+    std::vector<Square> rndSquares;
+    rndOccupancies.reserve(numRnd);
+    rndSquares.reserve(numRnd);
+    for(size_t i{}; i < numRnd; ++i) {
+        rndOccupancies.emplace_back(lehmer64());
+        rndSquares.push_back(static_cast<Square>(lehmer8()));
+    }
+    std::cout << "Starting trials\n";
+
+    auto start = steady_clock::now();
+    for(size_t trial{}; trial < numRnd; ++trial) {
+        Bitboard attacks = MoveTables::GetRookAttacks(rndSquares[trial], rndOccupancies[trial]);
+    }
+    auto end = steady_clock::now();
+
+    std::cout << "Time: " << duration_cast<nanoseconds>((end - start) / numRnd) << '\n';
+    
+
+    // Print8x8(MoveTables::kKingMoves[D4]);
+    // Print8x8(Files::A);
 }

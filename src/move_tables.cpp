@@ -1,50 +1,84 @@
-#include "constants.hpp"
-
 #include "bitboard.hpp"
 
-namespace {
-    consteval MoveTable<64> GenerateKnightAttacks() {
-        MoveTable<64> attacks{};
+#include "move_tables.hpp"
+
+namespace MoveTables {
+    consteval MoveTable GenerateKnightAttacks() {
+        MoveTable attacks{};
 
         for (int sq = 0; sq < kBoardSize; ++sq) {
             Bitboard b{ 1ull << sq };
 
             attacks[sq] =
-                (b << 17 & ~Files::A)  | // North-North-East
-                (b << 15 & ~Files::H)  | // North-North-West
-                (b << 10 & ~Files::AB) | // East-East-North
-                (b <<  6 & ~Files::GH) | // West-West-North
-                (b >> 17 & ~Files::H)  | // South-South-West
-                (b >> 15 & ~Files::A)  | // South-South-East
-                (b >> 10 & ~Files::GH) | // West-West-South
-                (b >>  6 & ~Files::AB);  // East-East-South
+                b.shift<North>().shift<NorthEast>() | 
+                b.shift<North>().shift<NorthWest>() |
+                b.shift<East>().shift<NorthEast>()  |
+                b.shift<West>().shift<NorthWest>()  |
+                b.shift<South>().shift<SouthWest>() |
+                b.shift<South>().shift<SouthEast>() |
+                b.shift<East>().shift<SouthEast>()  |
+                b.shift<West>().shift<SouthWest>();
         }
 
         return attacks;
     }
 
-    consteval MoveTable<64> GenerateKingMoves() {
-        MoveTable<64> moves{};
+    consteval MoveTable GenerateKingMoves() {
+        MoveTable moves{};
 
         for (int square{}; square < kBoardSize; ++square) {
-            const Bitboard b = 1ULL << square;
+            Bitboard b{ 1ull << square };
 
             moves[square] =
-                (b << 7 & ~Files::H) | // Up-Right
-                (b << 8)                  | // Up
-                (b << 9 & ~Files::A) | // Up-Left
-                (b << 1 & ~Files::A) | // Left
-                (b >> 1 & ~Files::H) | // Right
-                (b >> 7 & ~Files::A) | // Down-Left
-                (b >> 8)                  | // Down
-                (b >> 9 & ~Files::H);  // Down-Light
+                b.shift<NorthEast>() |
+                b.shift<North>() |
+                b.shift<NorthWest>() |
+                b.shift<West>() |
+                b.shift<East>() |
+                b.shift<SouthWest>() |
+                b.shift<South>() |
+                b.shift<SouthEast>();
         }
         return moves;
+    }
+    
+    template<Direction Dir>
+    Bitboard GenerateRayAttacks(Square from, Bitboard occupied) {
+        Bitboard attacks{};
+        Bitboard curr{from};
+        
+        while(curr) {
+            curr = curr.shift<Dir>();
+            attacks |= curr; // filter out same side pieces later
+
+            if(curr & occupied) {
+                break;
+            }
+        }
+
+        return attacks;
+    }
+
+    template<Direction... Dirs>
+    Bitboard GetSlidingAttacks(Square from, Bitboard occupied) {
+        return (GenerateRayAttacks<Dirs>(from, occupied) | ...);
+    }
+
+    Bitboard GetRookAttacks(Square from, Bitboard occupied) {
+        return GetSlidingAttacks<North, East, South, West>(from, occupied);
+    }
+
+    Bitboard GetBishopAttacks(Square from, Bitboard occupied) {
+        return GetSlidingAttacks<NorthEast, SouthEast, SouthWest, NorthWest>(from, occupied);
+    }
+
+    Bitboard GenerateQueenAttacks(Square from, Bitboard occupied) {
+        return GetRookAttacks(from, occupied) | GetBishopAttacks(from, occupied);
     }
 }
 
 namespace MoveTables {
-    const MoveTable<64> KNIGHT_ATTACKS{GenerateKnightAttacks()};
-    const MoveTable<64> KING_MOVES{GenerateKingMoves()};
+    const MoveTable kKnightAttacks{GenerateKnightAttacks()};
+    const MoveTable kKingMoves{GenerateKingMoves()};
 }
 

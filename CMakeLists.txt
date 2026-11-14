@@ -17,7 +17,7 @@ add_subdirectory(thirdparty/raylib)
 add_executable(houd ${SOURCE_FILES})
 
 target_include_directories(houd PRIVATE
-`   thirdparty/raylib/src
+   thirdparty/raylib/src
 )
 
 target_link_libraries(houd raylib)

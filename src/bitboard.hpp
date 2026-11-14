@@ -5,6 +5,7 @@
 
 #include "types.hpp"
 
+// inspired by follychess engine
 class [[nodiscard]] Bitboard {
 public:
     
@@ -48,9 +49,12 @@ public:
         return Bitboard(data_ & other.data_);
     }
 
-
     constexpr Bitboard operator&(int other) const {
         return Bitboard(data_ & other);
+    }
+
+    constexpr Bitboard operator|(Bitboard other) const {
+        return Bitboard(data_ | other.data_);
     }
 
     constexpr Bitboard& operator&=(Bitboard other) {
@@ -63,12 +67,16 @@ public:
         return *this;
     }
 
+    constexpr operator bool() const {
+        return data_ != 0;
+    }
+
     [[nodiscard]] constexpr int getCount() const { return std::popcount(data_); }
     
     template<Direction direction>
-    constexpr Bitboard shift();
+    constexpr Bitboard shift() const;
 
-    constexpr auto operator==(Bitboard other) = default;
+    constexpr bool operator==(const Bitboard& other) const = default;
     constexpr auto operator<=>(Bitboard other);
 
 private:
@@ -83,7 +91,7 @@ namespace Files {
 }
 
 template<Direction Direction>
-constexpr Bitboard Bitboard::shift() {
+constexpr Bitboard Bitboard::shift() const {
     if constexpr(Direction == North)     { return *this << 8; }
 
     if constexpr(Direction == NorthEast) { return *this << 7 & ~Files::A; }
@@ -100,5 +108,5 @@ constexpr Bitboard Bitboard::shift() {
 
     if constexpr(Direction == NorthWest) { return *this << 9 & ~Files::H; }
 
-    return Bitboard{ 0 };
+    return Bitboard{};
 }
