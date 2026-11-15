@@ -114,7 +114,7 @@ public:
     }
 
     [[nodiscard]] bool TryMove(Move move, Piece type) {
-        if(!boards_[side_to_move_][type].get(move.from)) {
+        if(!boards_[side_to_move_][type].Get(move.from)) {
             return false;
         }
 
@@ -134,16 +134,16 @@ public:
         Side them = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
         
         for(int type{}; type < QUEEN; ++type) {
-            if(boards_[them][static_cast<Piece>(type)].get(move.to)) {
+            if(boards_[them][static_cast<Piece>(type)].Get(move.to)) {
                 undo.emplace(UndoInfo{FullPiece{them, static_cast<Piece>(type)}, move.to});
 
-                boards_[them][type].clear(move.to);
+                boards_[them][type].Clear(move.to);
                 break;
             }
         }
 
-        boards_[side_to_move_][move.type].set(move.to);
-        boards_[side_to_move_][move.type].clear(move.from);
+        boards_[side_to_move_][move.type].Set(move.to);
+        boards_[side_to_move_][move.type].Clear(move.from);
 
         side_to_move_ = them;
 
@@ -153,22 +153,22 @@ public:
     void UndoMove(Move move, const std::optional<UndoInfo>& undo_info) {
         side_to_move_ = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
         
-        boards_[side_to_move_][move.type].clear(move.to);
-        boards_[side_to_move_][move.type].set(move.from);
+        boards_[side_to_move_][move.type].Clear(move.to);
+        boards_[side_to_move_][move.type].Set(move.from);
 
         if(undo_info) {
             const auto undo = *undo_info;
             const auto captured = undo.captured_piece;
 
-            boards_[captured.color][captured.piece].set(undo.square);
+            boards_[captured.color][captured.piece].Set(undo.square);
         }
     }
 
     float Evaluate() const {
         float eval = 0.0f;
         for(int type{ PAWN }; type < KING; ++type) {
-            eval += PieceVal(static_cast<Piece>(type)) * boards_[SIDE_WHITE][type].getCount();
-            eval -= PieceVal(static_cast<Piece>(type)) * boards_[SIDE_BLACK][type].getCount();
+            eval += PieceVal(static_cast<Piece>(type)) * boards_[SIDE_WHITE][type].GetCount();
+            eval -= PieceVal(static_cast<Piece>(type)) * boards_[SIDE_BLACK][type].GetCount();
         }
 
         return side_to_move_ == SIDE_WHITE ? eval : -eval; // return eval relative to side
@@ -211,7 +211,7 @@ public:
 
                 for (u16 color{}; color < SIDE_NB; ++color) {
                     for(u16 piece{}; piece < PIECE_NB; ++piece)
-                    if(boards_[color][piece].get(square)) {
+                    if(boards_[color][piece].Get(square)) {
                         piece_rep = tokens[color][piece];
                         break;
                     }
@@ -250,7 +250,7 @@ public:
         };
         for (u16 color{}; color < SIDE_NB; ++color) {
             for (u16 piece{}; piece < PIECE_NB; ++piece) {
-                if (boards_[color][piece].get(square)) {
+                if (boards_[color][piece].Get(square)) {
                     return tokens[color][piece];
                 }
             }
@@ -264,14 +264,14 @@ private:
         Bitboard knights = boards_[side_to_move_][KNIGHT];
 
         Square from;
-        while((from = knights.getfstsqr()) != NONE) {
-            knights.clear(from);
+        while((from = knights.FirstSquare()) != NONE) {
+            knights.Clear(from);
 
             Bitboard attacks = MoveTables::kKnightAttacks[from] & ~Occupancy(side_to_move_);
 
             while(attacks) {
-                Square to = attacks.getfstsqr();
-                attacks.clear(to);
+                Square to = attacks.FirstSquare();
+                attacks.Clear(to);
                 moves.push_back({from, to, KNIGHT});
             }
         }
@@ -301,7 +301,7 @@ void Print8x8(Bitboard bb) {
 
             for (u16 color{}; color < SIDE_NB; ++color) {
                 for(u16 piece{}; piece < PIECE_NB; ++piece)
-                if (bb.get(square)) {
+                if (bb.Get(square)) {
                     piece_rep = 'O';
                     break;
                 }

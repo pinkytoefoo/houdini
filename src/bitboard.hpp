@@ -21,20 +21,20 @@ public:
     {
     }
 
-    [[nodiscard]] constexpr bool get(Square square) const {
+    [[nodiscard]] constexpr bool Get(Square square) const {
         return (data_ & (1ull << square)) != 0;
     }
 
-    constexpr void set(Square square) {
+    constexpr void Set(Square square) {
         data_ |= (1ull << square);
     }
     
-    constexpr void clear(Square square) {
+    constexpr void Clear(Square square) {
         data_ &= ~(1ull << square);
     }
 
     // get the first square
-    constexpr Square getfstsqr() const {
+    constexpr Square FirstSquare() const {
         return data_ == 0
             ? NONE
             : static_cast<Square>(std::countr_zero(data_));
@@ -56,10 +56,6 @@ public:
         return Bitboard(data_ & other.data_);
     }
 
-    constexpr Bitboard operator&(int other) const {
-        return Bitboard(data_ & other);
-    }
-
     constexpr Bitboard operator|(Bitboard other) const {
         return Bitboard(data_ | other.data_);
     }
@@ -78,7 +74,7 @@ public:
         return data_ != 0;
     }
 
-    [[nodiscard]] constexpr int getCount() const { return std::popcount(data_); }
+    [[nodiscard]] constexpr int GetCount() const { return std::popcount(data_); }
     
     template<Direction direction>
     constexpr Bitboard shift() const;
@@ -117,3 +113,4 @@ constexpr Bitboard Bitboard::shift() const {
 
     return Bitboard{};
 }
+
