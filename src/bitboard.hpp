@@ -33,6 +33,13 @@ public:
         data_ &= ~(1ull << square);
     }
 
+    // get the first square
+    constexpr Square getfstsqr() const {
+        return data_ == 0
+            ? NONE
+            : static_cast<Square>(std::countr_zero(data_));
+    }
+
     constexpr Bitboard operator<<(int bits) const {
         return Bitboard(data_ << bits);
     }

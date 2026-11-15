@@ -1,6 +1,8 @@
+#include "types.hpp"
 #include <iostream>
 #include <bitset>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <string>
 #include <bit>
@@ -19,6 +21,9 @@ using namespace std::chrono;
 #include "bitboard.hpp"
 #include "move_tables.hpp"
 
+class Bitboard;
+void Print8x8(Bitboard bb);
+
 enum Piece : std::uint16_t {
     PAWN,
     KNIGHT,
@@ -28,6 +33,18 @@ enum Piece : std::uint16_t {
     KING,
     PIECE_NB
 };
+
+// todo: add square weights and game stage (early, mid, late game weights)
+int PieceVal(Piece type) {
+    switch(type) {
+        case PAWN: return 1;
+        case KNIGHT: case BISHOP: return 3;
+        case ROOK: return 5;
+        case QUEEN: return 9;
+        default:
+            throw std::logic_error{"piece values are only assigned to valued pieces"};
+    }
+}
 
 enum Side : std::uint16_t {
     SIDE_WHITE,
@@ -63,6 +80,12 @@ constexpr FullPiece CharToPiece(char ch) {
 struct Move {
     Square from;
     Square to;
+    Piece type;
+};
+
+struct UndoInfo {
+    FullPiece captured_piece;
+    Square square;
 };
 
 class Position
@@ -101,14 +124,74 @@ public:
             // todo: add king check logic
         }
 
-        MakeMove(move, type);
+        MakeMove(move);
         return true;
     }
 
-    void MakeMove(Move move, Piece type) {
-        boards_[side_to_move_][type].set(move.to);
-        boards_[side_to_move_][type].set(move.from);
-        side_to_move_ = (side_to_move_ == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
+    std::optional<UndoInfo> MakeMove(Move move) {
+        std::optional<UndoInfo> undo;
+        Side us = side_to_move_;
+        Side them = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+        
+        for(int type{}; type < QUEEN; ++type) {
+            if(boards_[them][static_cast<Piece>(type)].get(move.to)) {
+                undo.emplace(UndoInfo{FullPiece{them, static_cast<Piece>(type)}, move.to});
+
+                boards_[them][type].clear(move.to);
+                break;
+            }
+        }
+
+        boards_[side_to_move_][move.type].set(move.to);
+        boards_[side_to_move_][move.type].clear(move.from);
+
+        side_to_move_ = them;
+
+        return undo;
+    }
+
+    void UndoMove(Move move, const std::optional<UndoInfo>& undo_info) {
+        side_to_move_ = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+        
+        boards_[side_to_move_][move.type].clear(move.to);
+        boards_[side_to_move_][move.type].set(move.from);
+
+        if(undo_info) {
+            const auto undo = *undo_info;
+            const auto captured = undo.captured_piece;
+
+            boards_[captured.color][captured.piece].set(undo.square);
+        }
+    }
+
+    float Evaluate() const {
+        float eval = 0.0f;
+        for(int type{ PAWN }; type < KING; ++type) {
+            eval += PieceVal(static_cast<Piece>(type)) * boards_[SIDE_WHITE][type].getCount();
+            eval -= PieceVal(static_cast<Piece>(type)) * boards_[SIDE_BLACK][type].getCount();
+        }
+
+        return side_to_move_ == SIDE_WHITE ? eval : -eval; // return eval relative to side
+    }
+
+    float Negamax(int depth) {
+        if(depth == 0) return Evaluate();
+
+        float best = -std::numeric_limits<float>::infinity();
+
+        for(auto const move : ValidMoves_()) {
+            auto undo = MakeMove(move);
+            Print();
+
+            float score = -Negamax(depth - 1);
+
+            UndoMove(move, undo);
+            Print();
+            
+            best = std::max(best, score);
+        }
+
+        return best;
     }
 
     void Print() {
@@ -176,6 +259,26 @@ public:
     }
 
 private:
+    std::vector<Move> ValidMoves_() {
+        std::vector<Move> moves;
+        Bitboard knights = boards_[side_to_move_][KNIGHT];
+
+        Square from;
+        while((from = knights.getfstsqr()) != NONE) {
+            knights.clear(from);
+
+            Bitboard attacks = MoveTables::kKnightAttacks[from] & ~Occupancy(side_to_move_);
+
+            while(attacks) {
+                Square to = attacks.getfstsqr();
+                attacks.clear(to);
+                moves.push_back({from, to, KNIGHT});
+            }
+        }
+        
+        return moves;
+    }
+
     Bitboard boards_[SIDE_NB][PIECE_NB]{{}};
     Side side_to_move_{SIDE_WHITE};
     std::optional<Square> en_passant_sq_;
@@ -224,28 +327,12 @@ inline uint8_t lehmer8() {
 }
 
 int main() {
-    Position board("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR");
+    // Position board("rnbqkbnr/1pp1pppp/p7/3P4/8/8/PPPP1PPP/RNBQKBNR");
+    Position board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     board.Print();
-    
-    constexpr size_t numRnd = 10'000'000;
-    std::vector<Bitboard> rndOccupancies;
-    std::vector<Square> rndSquares;
-    rndOccupancies.reserve(numRnd);
-    rndSquares.reserve(numRnd);
-    for(size_t i{}; i < numRnd; ++i) {
-        rndOccupancies.emplace_back(lehmer64());
-        rndSquares.push_back(static_cast<Square>(lehmer8()));
-    }
-    std::cout << "Starting trials\n";
 
-    auto start = steady_clock::now();
-    for(size_t trial{}; trial < numRnd; ++trial) {
-        Bitboard attacks = MoveTables::GetRookAttacks(rndSquares[trial], rndOccupancies[trial]);
-    }
-    auto end = steady_clock::now();
-
-    std::cout << "Time: " << duration_cast<nanoseconds>((end - start) / numRnd) << '\n';
-    
+    // std::cout << board.Evaluate() << '\n';
+    std::cout << board.Negamax(3);
 
     // Print8x8(MoveTables::kKingMoves[D4]);
     // Print8x8(Files::A);
