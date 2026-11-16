@@ -61,7 +61,7 @@ public:
     }
 
     constexpr Bitboard& operator&=(Bitboard other) {
-        data_ |= other.data_;
+        data_ &= other.data_;
         return *this;
     }
 

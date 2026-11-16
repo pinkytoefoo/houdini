@@ -25,32 +25,39 @@ class Bitboard;
 void Print8x8(Bitboard bb);
 
 enum Piece : std::uint16_t {
-    PAWN,
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    QUEEN,
-    KING,
-    PIECE_NB
+    kPawn,
+    kKnight,
+    kBishop,
+    kRook,
+    kQueen,
+    kKing,
+    kEmptyPiece
 };
 
 // todo: add square weights and game stage (early, mid, late game weights)
 int PieceVal(Piece type) {
     switch(type) {
-        case PAWN: return 1;
-        case KNIGHT: case BISHOP: return 3;
-        case ROOK: return 5;
-        case QUEEN: return 9;
+        case kPawn: return 1;
+        case kKnight: case kBishop: return 3;
+        case kRook: return 5;
+        case kQueen: return 9;
         default:
             throw std::logic_error{"piece values are only assigned to valued pieces"};
     }
 }
 
 enum Side : std::uint16_t {
-    SIDE_WHITE,
-    SIDE_BLACK,
-    SIDE_NB,
+    kWhite,
+    kBlack,
+    kEmptySide,
 };
+
+constexpr Side operator~(Side side) {
+    if(side == kEmptySide) {
+        throw std::logic_error{"side is not white or black"};
+    }
+    return side == kWhite ? kBlack : kWhite;
+}
 
 struct FullPiece {
     Side color;
@@ -59,19 +66,19 @@ struct FullPiece {
 
 constexpr FullPiece CharToPiece(char ch) {
     switch (ch) {
-        case 'P': return {SIDE_WHITE, PAWN};
-        case 'N': return {SIDE_WHITE, KNIGHT};
-        case 'B': return {SIDE_WHITE, BISHOP};
-        case 'R': return {SIDE_WHITE, ROOK};
-        case 'Q': return {SIDE_WHITE, QUEEN};
-        case 'K': return {SIDE_WHITE, KING};
+        case 'P': return {kWhite, kPawn};
+        case 'N': return {kWhite, kKnight};
+        case 'B': return {kWhite, kBishop};
+        case 'R': return {kWhite, kRook};
+        case 'Q': return {kWhite, kQueen};
+        case 'K': return {kWhite, kKing};
 
-        case 'p': return {SIDE_BLACK, PAWN};
-        case 'n': return {SIDE_BLACK, KNIGHT};
-        case 'b': return {SIDE_BLACK, BISHOP};
-        case 'r': return {SIDE_BLACK, ROOK};
-        case 'q': return {SIDE_BLACK, QUEEN};
-        case 'k': return {SIDE_BLACK, KING};
+        case 'p': return {kBlack, kPawn};
+        case 'n': return {kBlack, kKnight};
+        case 'b': return {kBlack, kBishop};
+        case 'r': return {kBlack, kRook};
+        case 'q': return {kBlack, kQueen};
+        case 'k': return {kBlack, kKing};
     }
 
     throw std::logic_error{"invalid char to piece"};
@@ -91,8 +98,7 @@ struct UndoInfo {
 class Position
 {
 public:
-    Position(const std::string& fen)
-    {
+    Position(const std::string& fen) {
         LoadPositionFromFen(fen);
     }
 
@@ -118,7 +124,7 @@ public:
             return false;
         }
 
-        if(type == KNIGHT) {
+        if(type == kKnight) {
             Bitboard attacks = MoveTables::kKnightAttacks[move.from];
             Bitboard valid = attacks & ~Occupancy(side_to_move_);
             // todo: add king check logic
@@ -129,11 +135,11 @@ public:
     }
 
     std::optional<UndoInfo> MakeMove(Move move) {
-        std::optional<UndoInfo> undo;
+        std::optional<UndoInfo> undo{std::nullopt};
         Side us = side_to_move_;
-        Side them = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+        Side them = ~side_to_move_;
         
-        for(int type{}; type < QUEEN; ++type) {
+        for(int type{}; type < kQueen; ++type) {
             if(boards_[them][static_cast<Piece>(type)].Get(move.to)) {
                 undo.emplace(UndoInfo{FullPiece{them, static_cast<Piece>(type)}, move.to});
 
@@ -151,7 +157,7 @@ public:
     }
 
     void UndoMove(Move move, const std::optional<UndoInfo>& undo_info) {
-        side_to_move_ = side_to_move_ == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+        side_to_move_ = ~side_to_move_;
         
         boards_[side_to_move_][move.type].Clear(move.to);
         boards_[side_to_move_][move.type].Set(move.from);
@@ -166,12 +172,12 @@ public:
 
     float Evaluate() const {
         float eval = 0.0f;
-        for(int type{ PAWN }; type < KING; ++type) {
-            eval += PieceVal(static_cast<Piece>(type)) * boards_[SIDE_WHITE][type].GetCount();
-            eval -= PieceVal(static_cast<Piece>(type)) * boards_[SIDE_BLACK][type].GetCount();
+        for(int type{ kPawn }; type < kKing; ++type) {
+            eval += PieceVal(static_cast<Piece>(type)) * boards_[kWhite][type].GetCount();
+            eval -= PieceVal(static_cast<Piece>(type)) * boards_[kBlack][type].GetCount();
         }
 
-        return side_to_move_ == SIDE_WHITE ? eval : -eval; // return eval relative to side
+        return side_to_move_ == kWhite ? eval : -eval; // return eval relative to side
     }
 
     float Negamax(int depth) {
@@ -209,8 +215,8 @@ public:
                 Square square = static_cast<Square>(rank * 8 + file);
                 char piece_rep = '.';
 
-                for (u16 color{}; color < SIDE_NB; ++color) {
-                    for(u16 piece{}; piece < PIECE_NB; ++piece)
+                for (u16 color{}; color < kEmptySide; ++color) {
+                    for(u16 piece{}; piece < kEmptyPiece; ++piece)
                     if(boards_[color][piece].Get(square)) {
                         piece_rep = tokens[color][piece];
                         break;
@@ -225,9 +231,9 @@ public:
     }
 
     [[nodiscard]] Bitboard Occupancy(Side side) const {
-        Bitboard result{ 0ull };
+        Bitboard result{};
 
-        for(short piece{}; piece < PIECE_NB; ++piece) {
+        for(short piece{}; piece < kEmptyPiece; ++piece) {
             result |= boards_[side][piece];
         }
 
@@ -235,12 +241,17 @@ public:
     }
 
     [[nodiscard]] Bitboard Occupancy() const {
-        return Occupancy(SIDE_WHITE) | Occupancy(SIDE_BLACK);
+        return Occupancy(kWhite) | Occupancy(kBlack);
     }
 
     // todo: check if there is really a knight on from square
     Bitboard KnightPsuedoMoves(Square from, Side side) {
         return MoveTables::kKnightAttacks[from] & ~Occupancy(side);
+    }
+
+    Bitboard PawnPsuedoMoves(Square from, Side side) {
+        //
+        // return 
     }
     
     char GetPieceAt(Square square) const {
@@ -248,8 +259,9 @@ public:
             {'P', 'N', 'B', 'R', 'Q', 'K'},
             {'p', 'n', 'b', 'r', 'q', 'k'}
         };
-        for (u16 color{}; color < SIDE_NB; ++color) {
-            for (u16 piece{}; piece < PIECE_NB; ++piece) {
+
+        for (u16 color{}; color < kEmptySide; ++color) {
+            for (u16 piece{}; piece < kEmptyPiece; ++piece) {
                 if (boards_[color][piece].Get(square)) {
                     return tokens[color][piece];
                 }
@@ -261,26 +273,39 @@ public:
 private:
     std::vector<Move> ValidMoves_() {
         std::vector<Move> moves;
-        Bitboard knights = boards_[side_to_move_][KNIGHT];
+        Bitboard knights = boards_[side_to_move_][kKnight];
 
         Square from;
         while((from = knights.FirstSquare()) != NONE) {
             knights.Clear(from);
 
-            Bitboard attacks = MoveTables::kKnightAttacks[from] & ~Occupancy(side_to_move_);
+            Bitboard attacks = KnightPsuedoMoves(from, side_to_move_);
 
             while(attacks) {
                 Square to = attacks.FirstSquare();
                 attacks.Clear(to);
-                moves.push_back({from, to, KNIGHT});
+                moves.push_back({from, to, kKnight});
+            }
+        }
+        
+        Bitboard pawns = boards_[side_to_move_][kPawn];
+        while((from = pawns.FirstSquare()) != NONE) {
+            pawns.Clear(from);
+
+            Bitboard attacks = KnightPsuedoMoves(from, side_to_move_);
+
+            while(attacks) {
+                Square to = attacks.FirstSquare();
+                attacks.Clear(to);
+                moves.push_back({from, to, kPawn});
             }
         }
         
         return moves;
     }
 
-    Bitboard boards_[SIDE_NB][PIECE_NB]{{}};
-    Side side_to_move_{SIDE_WHITE};
+    Bitboard boards_[kEmptySide][kEmptyPiece]{{}};
+    Side side_to_move_{kWhite};
     std::optional<Square> en_passant_sq_;
 };
 
@@ -299,8 +324,8 @@ void Print8x8(Bitboard bb) {
             Square square = static_cast<Square>(rank * 8 + file);
             char piece_rep = '.';
 
-            for (u16 color{}; color < SIDE_NB; ++color) {
-                for(u16 piece{}; piece < PIECE_NB; ++piece)
+            for (u16 side{}; side < kEmptySide; ++side) {
+                for(u16 piece{}; piece < kEmptyPiece; ++piece)
                 if (bb.Get(square)) {
                     piece_rep = 'O';
                     break;
