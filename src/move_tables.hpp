@@ -12,6 +12,8 @@ namespace MoveTables {
     consteval MoveTable GenerateKnightAttacks();
 
     Bitboard GetRookAttacks(Square from, Bitboard occupied);
+    Bitboard GetBishopAttacks(Square from, Bitboard occupied);
+    Bitboard GenerateQueenAttacks(Square from, Bitboard occupied);
 
     extern const MoveTable kKnightAttacks;
     extern const MoveTable kKingMoves;

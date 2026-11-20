@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 
 using u8  = std::uint8_t;
 using u16 = std::uint16_t;
@@ -24,4 +25,65 @@ enum Square : u16 {
     NONE,
     SQUARE_NB = 64
 };
+
+enum Piece : std::uint16_t {
+    kPawn,
+    kKnight,
+    kBishop,
+    kRook,
+    kQueen,
+    kKing,
+    kEmptyPiece
+};
+
+enum Side : std::uint16_t {
+    kWhite,
+    kBlack,
+    kEmptySide,
+    kSideCount,
+};
+
+constexpr Side operator~(Side side) {
+    if(side == kEmptySide) {
+        throw std::logic_error{"side is not white or black"};
+    }
+    return side == kWhite ? kBlack : kWhite;
+}
+
+struct FullPiece {
+    Side color;
+    Piece piece;
+};
+
+constexpr FullPiece CharToPiece(char ch) {
+    switch (ch) {
+        case 'P': return {kWhite, kPawn};
+        case 'N': return {kWhite, kKnight};
+        case 'B': return {kWhite, kBishop};
+        case 'R': return {kWhite, kRook};
+        case 'Q': return {kWhite, kQueen};
+        case 'K': return {kWhite, kKing};
+
+        case 'p': return {kBlack, kPawn};
+        case 'n': return {kBlack, kKnight};
+        case 'b': return {kBlack, kBishop};
+        case 'r': return {kBlack, kRook};
+        case 'q': return {kBlack, kQueen};
+        case 'k': return {kBlack, kKing};
+    }
+
+    throw std::logic_error{"invalid char to piece"};
+}
+
+struct Move {
+    Square from;
+    Square to;
+    Piece type;
+};
+
+struct UndoInfo {
+    FullPiece captured_piece;
+    Square square;
+};
+
 

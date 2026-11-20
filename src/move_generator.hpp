@@ -1,7 +1,13 @@
 #pragma once
 
-class MoveGenerator {
-public:
-    static Generate
+#include <array>
+
+#include "position.hpp"
+
+
+namespace MoveGenerator {
+    void GeneratePsuedoLegal(const Position& position) {
+        return position.
+    }
 }
 
